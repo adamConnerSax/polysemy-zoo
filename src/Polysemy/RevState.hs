@@ -1,4 +1,4 @@
-{-# LANGUAGE RecursiveDo, TemplateHaskell #-}
+{-# LANGUAGE CPP, RecursiveDo, TemplateHaskell #-}
 module Polysemy.RevState
  ( -- * Effect
    RevState (..)
@@ -10,17 +10,20 @@ module Polysemy.RevState
  , revModify
 
    -- * Interpretations
+#if __GLASGOW_HASKELL__ < 810   
  , runRevState
  , runLazyRevState
+#endif 
  ) where
 
 import Control.Monad.Fix
 
 import Polysemy
+#if __GLASGOW_HASKELL__ < 810   
 import Polysemy.Fixpoint
 import Polysemy.Internal
 import Polysemy.Internal.Union
-
+#endif
 ------------------------------------------------------------------------------
 -- | A 'Polysemy.State.State' effect for threading state /backwards/ instead
 -- of forwards through a computation.
@@ -63,7 +66,7 @@ revModify :: forall s r
           -> Sem r ()
 revModify f = revState $ \s -> (f s, ())
 
-
+#if __GLASGOW_HASKELL__ < 810   
 ------------------------------------------------------------------------------
 -- | Run a 'RevState' effect with local state that is propagated /backwards/
 -- through the computation, from last action to first.
@@ -85,6 +88,7 @@ runLazyRevState :: Member Fixpoint r
 runLazyRevState s =
    (`runLazyRevStateT` s)
   . runLazyRevStateInC
+#endif
 
 newtype RevStateT s m a = RevStateT { runRevStateT :: s -> m (s, a) }
   deriving (Functor)
@@ -123,7 +127,8 @@ instance MonadFix m => Monad (LazyRevStateT s m) where
       ~(s'', a) <- runLazyRevStateT m s'
       ~(s',  b) <- runLazyRevStateT (f a) s
     return (s'', b)
-
+    
+#if __GLASGOW_HASKELL__ < 810   
 runRevStateInC :: Member Fixpoint r
                => Sem (RevState s ': r) a
                -> RevStateT s (Sem r) a
@@ -153,3 +158,4 @@ runLazyRevStateInC = usingSem $ \u -> LazyRevStateT $ \s ->
           (uncurry runLazyRevState)
           (Just . snd)
           g
+#endif
